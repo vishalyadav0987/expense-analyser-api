@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  postgres_db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres       # <--- This is your user
+      POSTGRES_PASSWORD: root       # <--- This is your password
+      POSTGRES_DB: expense_db       # <--- This creates the database automatically
+    ports:
+      - "5432:5432"                 # <--- Maps local port to container port
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

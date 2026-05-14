@@ -1,0 +1,56 @@
+# Binaries
+
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+
+*.test
+
+# Output of go build
+
+*.out
+
+# Go workspace file
+
+go.work
+go.work.sum
+
+# Dependency directories (optional — usually not needed to ignore)
+
+vendor/
+
+# IDE/editor folders
+
+.vscode/
+.idea/
+
+# OS files
+
+.DS_Store
+Thumbs.db
+
+# Logs
+
+*.log
+
+# Environment files
+
+.env
+
+# Air (live reload)
+
+tmp/
+.air.toml
+
+# Coverage files
+
+coverage.out
+
+# Build artifacts
+
+dist/
+build/
