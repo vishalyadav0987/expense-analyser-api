@@ -17,6 +17,12 @@ var (
 	ErrInvalidOTP         = errors.New("invalid or expired OTP")
 )
 
+const (
+	MaxFailedAttempts = 3
+	FailWindow        = 10 * time.Minute
+	LockoutDuration   = 15 * time.Minute
+)
+
 // Provider Interfaces:
 // By defining these here, the Service is completely decoupled from AWS SES or JWT libraries.
 type TokenProvider interface {
@@ -46,15 +52,23 @@ type Service struct {
 	otpRepo       auth.OTPRepository
 	tokenProvider TokenProvider
 	emailProvider EmailProvider
+	securityRepo  SecurityRepository
 }
 
 // NewService is the dependency injection constructor.
-func NewService(ur auth.UserRepository, or auth.OTPRepository, tp TokenProvider, ep EmailProvider) *Service {
+func NewService(
+	ur auth.UserRepository,
+	or auth.OTPRepository,
+	tp TokenProvider,
+	ep EmailProvider,
+	securityRepo SecurityRepository,
+) *Service {
 	return &Service{
 		userRepo:      ur,
 		otpRepo:       or,
 		tokenProvider: tp,
 		emailProvider: ep,
+		securityRepo:  securityRepo,
 	}
 }
 
@@ -186,6 +200,24 @@ func (s *Service) LoginMPIN(ctx context.Context, email string, mpin string) (str
 		return "", "", errors.New("MPIN must be exactly 4 digits")
 	}
 
+	// ---------------------------------------------
+	//             RATE LIMITTING
+	// ---------------------------------------------
+
+	// 1. SECURITY CHECK: Is the account currently locked?
+	lockTTL, err := s.securityRepo.GetLockTTL(ctx, email)
+	if err != nil {
+		return "", "", fmt.Errorf("system error checking lock: %w", err)
+	}
+
+	if lockTTL > 0 {
+		minutesLeft := int(lockTTL.Minutes())
+		if minutesLeft == 0 {
+			minutesLeft = 1
+		} // Show at least 1 min
+		return "", "", fmt.Errorf("account temporarily locked due to too many failed attempts. Try again in %d minutes", minutesLeft)
+	}
+
 	// 1. Find the user by Email
 	user, err := s.userRepo.GetUserByEmail(ctx, email)
 	if err != nil {
@@ -203,10 +235,24 @@ func (s *Service) LoginMPIN(ctx context.Context, email string, mpin string) (str
 
 	// 3. Verify the MPIN matches the hash in the DB
 	if err := bcrypt.CompareHashAndPassword([]byte(*user.MPINHash), []byte(mpin)); err != nil {
-		return "", "", errors.New("invalid credentials")
+		fails, redisErr := s.securityRepo.RecordFailedAttempt(ctx, email, FailWindow)
+		if redisErr != nil {
+			fmt.Printf("Warning: failed to record auth failure in Redis: %v\n", redisErr)
+		} else if fails >= MaxFailedAttempts {
+			// Lock them out!
+			_ = s.securityRepo.LockAccount(ctx, email, LockoutDuration)
+			return "", "", errors.New("invalid MPIN. Maximum attempts reached. Account locked for 15 minutes")
+		}
+
+		remaining := MaxFailedAttempts - fails
+		return "", "", fmt.Errorf("invalid MPIN. You have %d attempts remaining", remaining)
+
 	}
 
-	// 4. Success! Issue fresh session tokens
+	// 4. SUCCESS! Clear all failed attempts and locks.
+	_ = s.securityRepo.ClearLockAndAttempts(ctx, email)
+
+	// 5. Issue fresh session tokens
 	return s.tokenProvider.GenerateSessionTokens(user.ID)
 }
 

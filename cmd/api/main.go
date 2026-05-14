@@ -79,9 +79,10 @@ func main() {
 	otpRepo := redisInfra.NewOTPRepository(rdb)
 	tokenProvider := jwt.NewTokenProvider(jwtSecret, "expense_app")
 	emailProvider := email.NewSMTPEmailService()
+	securityService := redisInfra.NewSecurityRepository(rdb)
 
 	// B. Application Layer (The Brain)
-	authService := auth.NewService(userRepo, otpRepo, tokenProvider, emailProvider)
+	authService := auth.NewService(userRepo, otpRepo, tokenProvider, emailProvider, securityService)
 
 	// C. Delivery Layer (HTTP Handlers)
 	authHandler := handlers.NewAuthHandler(authService, tokenProvider)
