@@ -22,6 +22,7 @@ var (
 type TokenProvider interface {
 	GenerateOTPToken(userID string) (string, error)
 	GenerateSessionTokens(userID string) (accessToken string, refreshToken string, err error)
+	VerifyToken(tokenString string, expectedAudience string) (string, error)
 }
 
 type EmailProvider interface {
@@ -35,7 +36,8 @@ type EmailProvider interface {
 type UseCase interface {
 	RequestOTP(ctx context.Context, email, password string) (string, error)
 	VerifyOTP(ctx context.Context, email, otp string) (otpToken string, isNewUser bool, err error)
-	SubmitMPIN(ctx context.Context, userID, mpin string) (accessToken string, refreshToken string, err error)
+	SetMPIN(ctx context.Context, userID string, mpin string) (string, string, error)
+	LoginMPIN(ctx context.Context, email string, mpin string) (string, string, error)
 }
 
 // Service orchestrates the authentication business logic.
@@ -132,8 +134,15 @@ func (s *Service) VerifyOTP(ctx context.Context, email, otp string) (otpToken st
 	}
 
 	user, err := s.userRepo.GetUserByEmail(ctx, email)
-	if err != nil || user == nil {
-		return "", false, errors.New("user not found after OTP verification")
+	if err != nil {
+		// SDE3 Fix: Don't mask database failures! If the DB is down, log it or return a server error.
+		return "", false, fmt.Errorf("database error during verification: %w", err)
+	}
+
+	if user == nil {
+		// SDE3 Fix: If we reach here, it means the OTP was valid, but the user vanished from Postgres.
+		// This is a severe state mismatch. We return a clean error to the client.
+		return "", false, errors.New("account anomaly: user record missing")
 	}
 
 	// OTP is single-use. Delete it immediately to prevent replay attacks.
@@ -148,37 +157,57 @@ func (s *Service) VerifyOTP(ctx context.Context, email, otp string) (otpToken st
 	return otpToken, !user.HasSetupMPIN(), nil
 }
 
-// SubmitMPIN handles both setting a new MPIN and verifying an existing one.
-func (s *Service) SubmitMPIN(ctx context.Context, userID, mpin string) (string, string, error) {
+// SetMPIN is strictly for the initial setup.
+// It requires the userID that was extracted from the otpAccessToken by the middleware.
+func (s *Service) SetMPIN(ctx context.Context, userID string, mpin string) (string, string, error) {
 	if len(mpin) != 4 {
-		return "", "", auth.ErrMPINTooShort
+		return "", "", errors.New("MPIN must be exactly 4 digits")
 	}
 
-	user, err := s.userRepo.GetUserByEmail(ctx, userID) // Assuming you overload GetUser or use GetUserByID
-	if err != nil || user == nil {
-		return "", "", errors.New("user not found")
-	}
-
-	if !user.HasSetupMPIN() {
-		// Setup MPIN Flow
-		hashedMPIN, _ := bcrypt.GenerateFromPassword([]byte(mpin), bcrypt.DefaultCost)
-		if err := s.userRepo.UpdateMPIN(ctx, user.ID, string(hashedMPIN)); err != nil {
-			return "", "", fmt.Errorf("failed to save new MPIN: %w", err)
-		}
-	} else {
-		// Verify MPIN Flow
-		if err := bcrypt.CompareHashAndPassword([]byte(*user.MPINHash), []byte(mpin)); err != nil {
-			return "", "", errors.New("invalid MPIN")
-		}
-	}
-
-	// Issue final production tokens
-	accessToken, refreshToken, err := s.tokenProvider.GenerateSessionTokens(user.ID)
+	// 1. Hash the new MPIN
+	hashedMPIN, err := bcrypt.GenerateFromPassword([]byte(mpin), bcrypt.DefaultCost)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate session tokens: %w", err)
+		return "", "", fmt.Errorf("failed to hash MPIN: %w", err)
 	}
 
-	return accessToken, refreshToken, nil
+	// 2. Save it to the database
+	if err := s.userRepo.UpdateMPIN(ctx, userID, string(hashedMPIN)); err != nil {
+		return "", "", fmt.Errorf("failed to save new MPIN: %w", err)
+	}
+
+	// 3. Issue the final session tokens
+	return s.tokenProvider.GenerateSessionTokens(userID)
+}
+
+// LoginMPIN is for everyday quick access.
+// It requires NO tokens. It relies on checking the database against the provided email.
+func (s *Service) LoginMPIN(ctx context.Context, email string, mpin string) (string, string, error) {
+	if len(mpin) != 4 {
+		return "", "", errors.New("MPIN must be exactly 4 digits")
+	}
+
+	// 1. Find the user by Email
+	user, err := s.userRepo.GetUserByEmail(ctx, email)
+	if err != nil {
+		return "", "", fmt.Errorf("database error: %w", err)
+	}
+	fmt.Println(user)
+	if user == nil {
+		return "", "", errors.New("invalid credentials") // Don't leak that the user doesn't exist
+	}
+
+	// 2. Check if they even have an MPIN set up
+	if user.MPINHash == nil {
+		return "", "", errors.New("MPIN not set up for this user. Please verify OTP first.")
+	}
+
+	// 3. Verify the MPIN matches the hash in the DB
+	if err := bcrypt.CompareHashAndPassword([]byte(*user.MPINHash), []byte(mpin)); err != nil {
+		return "", "", errors.New("invalid credentials")
+	}
+
+	// 4. Success! Issue fresh session tokens
+	return s.tokenProvider.GenerateSessionTokens(user.ID)
 }
 
 // generateSecureOTP creates a random 4 digit string using crypto/rand

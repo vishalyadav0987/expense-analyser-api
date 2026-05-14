@@ -20,16 +20,16 @@ func SetupRouter(router *gin.Engine, authHandler *handlers.AuthHandler) {
 		{
 			auth.POST("/request-otp", authHandler.HandleRequestOTP)
 			auth.POST("/verify-otp", authHandler.HandleVerifyOTP)
+			auth.POST("/mpin-login", authHandler.HandleLoginMPIN)
 		}
 
 		// ------------------------------------------------------------------
 		// Protected Routes (Requires JWT Middleware)
 		// ------------------------------------------------------------------
-		// SDE3 Setup: Later we will add: secureAuth := auth.Group("/").Use(middleware.RequireJWT())
 		secureAuth := auth.Group("/")
 		{
 			// This route requires the user to pass the OTPAccessToken
-			secureAuth.POST("/submit-mpin", authHandler.HandleSubmitMPIN)
+			secureAuth.POST("/set-mpin", authHandler.HandleSetMPIN)
 		}
 
 		// Future implementation:

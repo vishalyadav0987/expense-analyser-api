@@ -24,7 +24,7 @@ func NewSMTPEmailService() *SMTPEmailService {
 }
 
 func (s *SMTPEmailService) SendOTP(ctx context.Context, email, otp string) error {
-	auth := smtp.PlainAuth("", os.Getenv("BREVO_EMAIL_API"), s.password, s.host)
+	auth := smtp.PlainAuth("", "a7e3a8001@smtp-brevo.com", s.password, s.host)
 
 	msg := []byte(fmt.Sprintf(
 		"From: %s\r\n"+

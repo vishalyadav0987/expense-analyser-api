@@ -43,3 +43,14 @@ type SubmitMPINResponse struct {
 	AccessToken  string `json:"accessToken"`
 	RefreshToken string `json:"refreshToken"`
 }
+
+type LoginMPINRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	// SDE3 Tip: Gin's 'len=4' binding automatically rejects MPINs that aren't exactly 4 characters!
+	MPIN string `json:"mpin" binding:"required,len=4"`
+}
+
+type LoginMPINResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}

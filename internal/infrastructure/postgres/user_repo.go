@@ -72,6 +72,27 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*aut
 	return &user, nil
 }
 
+func (r *UserRepository) GetUserByID(ctx context.Context, userID string) (*auth.User, error) {
+	query := `
+		SELECT id, email, password_hash, mpin_hash, is_active, created_at, updated_at
+		FROM users 
+		WHERE id = $1
+	`
+
+	var user auth.User
+	err := r.db.GetContext(ctx, &user, query, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// It's perfectly normal for a user not to exist (e.g., during login).
+			// We return nil, nil so the Service layer can decide what to do.
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to query user by email: %w", err)
+	}
+
+	return &user, nil
+}
+
 // UpdateMPIN updates the hash for the quick-login flow.
 func (r *UserRepository) UpdateMPIN(ctx context.Context, userID string, mpinHash string) error {
 	query := `

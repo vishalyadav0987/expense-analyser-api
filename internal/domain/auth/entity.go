@@ -12,15 +12,18 @@ var (
 
 // User represents the core entity in our authentication domain.
 type User struct {
-	ID           string
-	Email        string
-	PasswordHash string
-	// SDE3 Note: MPINHash is a pointer (*string) because when a user first
-	// registers, they haven't set an MPIN yet. It will be NULL in the database.
-	MPINHash  *string
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID           string `db:"id"`
+	Email        string `db:"email"`
+	PasswordHash string `db:"password_hash"`
+
+	// SDE3 Critical Detail: This MUST be a pointer (*string)
+	// because in our SQL table, mpin_hash can be NULL.
+	// If you use a regular string, sqlx will crash when it hits a NULL.
+	MPINHash *string `db:"mpin_hash"`
+
+	IsActive  bool      `db:"is_active"`
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
 }
 
 // HasSetupMPIN is a domain helper to instantly check if the user needs to be routed

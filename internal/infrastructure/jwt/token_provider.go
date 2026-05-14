@@ -66,3 +66,43 @@ func (t *tokenProvider) GenerateSessionTokens(userID string) (string, string, er
 
 	return accessToken, refreshToken, nil
 }
+
+// Add this to token_provider.go
+
+// VerifyToken checks the signature and returns the UserID if the token is valid for the expected audience.
+func (t *tokenProvider) VerifyToken(tokenString string, expectedAudience string) (string, error) {
+	// 1. Parse and verify the token signature
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// SDE3 Security Check: Always verify the signing method matches what you expect!
+		// Hackers sometimes try to bypass security by changing the algorithm to "none".
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return t.secretKey, nil
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("invalid token: %w", err)
+	}
+
+	// 2. Extract the claims
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return "", fmt.Errorf("invalid token claims")
+	}
+
+	// 3. Verify the Audience (The VIP Ticket Check)
+	// This ensures someone cannot use an "api_access" token to do an "mpin_setup" action.
+	aud, ok := claims["aud"].(string)
+	if !ok || aud != expectedAudience {
+		return "", fmt.Errorf("invalid token audience: expected %s, got %s", expectedAudience, aud)
+	}
+
+	// 4. Extract the User ID
+	userID, ok := claims["sub"].(string)
+	if !ok {
+		return "", fmt.Errorf("missing user id in token")
+	}
+
+	return userID, nil
+}

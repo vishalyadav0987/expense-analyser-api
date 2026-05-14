@@ -84,7 +84,7 @@ func main() {
 	authService := auth.NewService(userRepo, otpRepo, tokenProvider, emailProvider)
 
 	// C. Delivery Layer (HTTP Handlers)
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService, tokenProvider)
 
 	// ------------------------------------------------------------------
 	// 3. Setup Gin Router
