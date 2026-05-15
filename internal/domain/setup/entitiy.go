@@ -25,6 +25,7 @@ const (
 type Financials struct {
 	MonthlySalary        float64
 	YearlyHikePercentage float64
+	XXWeeklyLimit        float64
 }
 
 type SmartRules struct {
@@ -67,6 +68,18 @@ func (u *UserInitialSetup) Validate() error {
 	totalPercentage := u.SmartRules.NeedsPercentage + u.SmartRules.WantsPercentage + u.SmartRules.SavingsPercentage
 	if totalPercentage != 100 {
 		return errors.New("smart rules percentages must exactly equal 100")
+	}
+
+	return nil
+}
+
+func (u *UserInitialSetup) ValidateWeeklyLimit() error {
+	if u.Financials.XXWeeklyLimit <= 0 {
+		return errors.New("weekly limit must be greater than 0")
+	}
+
+	if u.Financials.XXWeeklyLimit > u.Financials.MonthlySalary {
+		return errors.New("weekly limit should be less the monthly salary")
 	}
 
 	return nil

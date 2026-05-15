@@ -37,6 +37,11 @@ func (s *SetupService) ProcessInitialSetup(ctx context.Context, p *domain.UserIn
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
+	// 4. Validation for xx_weekly_limit
+	if err := p.ValidateWeeklyLimit(); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
 	// 4. Save to Database via the Transaction Repository
 	p.SetupCompleted = true
 	err := s.repo.SaveCompleteSetup(ctx, p)

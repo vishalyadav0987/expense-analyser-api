@@ -12,6 +12,7 @@ type SetupRequest struct {
 type FinancialsDTO struct {
 	MonthlySalary        float64 `json:"monthlySalary" binding:"required,gt=0"` // Must be Greater Than (gt) 0
 	YearlyHikePercentage float64 `json:"yearlyHikePercentage" binding:"gte=0"`  // Greater Than or Equal (gte) 0
+	XXWeeklyLimit        float64 `json:"xxWeeklyLimit" binding:"gte=0"`
 }
 
 type SmartRulesDTO struct {

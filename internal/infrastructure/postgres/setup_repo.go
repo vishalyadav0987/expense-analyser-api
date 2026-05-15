@@ -33,8 +33,8 @@ func (r *SetupRepository) SaveCompleteSetup(ctx context.Context, p *setup.UserIn
 	profileQuery := `
 		INSERT INTO user_profiles (
 			user_id, monthly_salary, yearly_hike_percentage, 
-			needs_percentage, wants_percentage, savings_percentage, setup_completed
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+			needs_percentage, wants_percentage, savings_percentage, setup_completed, xx_weekly_limit
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 	_, err = tx.ExecContext(ctx, profileQuery,
 		p.UserID,
@@ -44,6 +44,7 @@ func (r *SetupRepository) SaveCompleteSetup(ctx context.Context, p *setup.UserIn
 		p.SmartRules.WantsPercentage,
 		p.SmartRules.SavingsPercentage,
 		p.SetupCompleted,
+		p.Financials.XXWeeklyLimit,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert user profile: %w", err)

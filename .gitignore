@@ -54,3 +54,5 @@ coverage.out
 
 dist/
 build/
+
+Makefile/

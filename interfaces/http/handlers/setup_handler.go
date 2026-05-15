@@ -38,6 +38,7 @@ func (h *SetupHandler) HandleSetupProfile(c *gin.Context) {
 		Financials: domain.Financials{
 			MonthlySalary:        req.Financials.MonthlySalary,
 			YearlyHikePercentage: req.Financials.YearlyHikePercentage,
+			XXWeeklyLimit:        req.Financials.XXWeeklyLimit,
 		},
 		SmartRules: domain.SmartRules{
 			NeedsPercentage:   req.SmartRules.NeedsPercentage,
@@ -76,6 +77,7 @@ func (h *SetupHandler) HandleSetupProfile(c *gin.Context) {
 			"smartRules":          profile.SmartRules,
 			"savedCategories":     profile.Categories,
 			"savedPaymentMethods": profile.PaymentMethods,
+			"financialInfo":       profile.Financials,
 		},
 	})
 }
