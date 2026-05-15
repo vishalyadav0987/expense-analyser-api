@@ -43,7 +43,7 @@ type UseCase interface {
 	RequestOTP(ctx context.Context, email, password string) (string, error)
 	VerifyOTP(ctx context.Context, email, otp string) (otpToken string, isNewUser bool, err error)
 	SetMPIN(ctx context.Context, userID string, mpin string) (string, string, error)
-	LoginMPIN(ctx context.Context, email string, mpin string) (string, string, error)
+	LoginMPIN(ctx context.Context, email string, mpin string) (string, string, *auth.User, error)
 }
 
 // Service orchestrates the authentication business logic.
@@ -77,13 +77,10 @@ func NewService(
 func (s *Service) RequestOTP(ctx context.Context, email, password string) (string, error) {
 	user, err := s.userRepo.GetUserByEmail(ctx, email)
 	if err != nil {
-		fmt.Println("pass")
-
 		return "", fmt.Errorf("auth service - failed to fetch user: %w", err)
 	}
 
 	var userID string
-
 	if user == nil {
 		// New User Registration Flow
 		// SDE3 Note: DefaultCost is currently 10. For highly sensitive apps, use 12,
@@ -92,15 +89,15 @@ func (s *Service) RequestOTP(ctx context.Context, email, password string) (strin
 		if err != nil {
 			return "", fmt.Errorf("failed to hash password: %w", err)
 		}
-
 		newUser := &auth.User{
-			ID:           generateUUID(), // Assume a UUID generator helper exists
-			Email:        email,
-			PasswordHash: string(hashedBytes),
-			MPINHash:     nil, // Explicitly nil (Not set yet)
-			IsActive:     true,
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
+			ID:            generateUUID(), // Assume a UUID generator helper exists
+			Email:         email,
+			PasswordHash:  string(hashedBytes),
+			MPINHash:      nil, // Explicitly nil (Not set yet)
+			IsActive:      true,
+			SetupComplete: false,
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
 		}
 
 		if err := s.userRepo.CreateUser(ctx, newUser); err != nil {
@@ -195,9 +192,9 @@ func (s *Service) SetMPIN(ctx context.Context, userID string, mpin string) (stri
 
 // LoginMPIN is for everyday quick access.
 // It requires NO tokens. It relies on checking the database against the provided email.
-func (s *Service) LoginMPIN(ctx context.Context, email string, mpin string) (string, string, error) {
+func (s *Service) LoginMPIN(ctx context.Context, email string, mpin string) (string, string, *auth.User, error) {
 	if len(mpin) != 4 {
-		return "", "", errors.New("MPIN must be exactly 4 digits")
+		return "", "", &auth.User{}, errors.New("MPIN must be exactly 4 digits")
 	}
 
 	// ---------------------------------------------
@@ -207,7 +204,7 @@ func (s *Service) LoginMPIN(ctx context.Context, email string, mpin string) (str
 	// 1. SECURITY CHECK: Is the account currently locked?
 	lockTTL, err := s.securityRepo.GetLockTTL(ctx, email)
 	if err != nil {
-		return "", "", fmt.Errorf("system error checking lock: %w", err)
+		return "", "", &auth.User{}, fmt.Errorf("system error checking lock: %w", err)
 	}
 
 	if lockTTL > 0 {
@@ -215,22 +212,22 @@ func (s *Service) LoginMPIN(ctx context.Context, email string, mpin string) (str
 		if minutesLeft == 0 {
 			minutesLeft = 1
 		} // Show at least 1 min
-		return "", "", fmt.Errorf("account temporarily locked due to too many failed attempts. Try again in %d minutes", minutesLeft)
+		return "", "", &auth.User{}, fmt.Errorf("account temporarily locked due to too many failed attempts. Try again in %d minutes", minutesLeft)
 	}
 
 	// 1. Find the user by Email
 	user, err := s.userRepo.GetUserByEmail(ctx, email)
 	if err != nil {
-		return "", "", fmt.Errorf("database error: %w", err)
+		return "", "", &auth.User{}, fmt.Errorf("database error: %w", err)
 	}
 	fmt.Println(user)
 	if user == nil {
-		return "", "", errors.New("invalid credentials") // Don't leak that the user doesn't exist
+		return "", "", &auth.User{}, errors.New("invalid credentials") // Don't leak that the user doesn't exist
 	}
 
 	// 2. Check if they even have an MPIN set up
 	if user.MPINHash == nil {
-		return "", "", errors.New("MPIN not set up for this user. Please verify OTP first.")
+		return "", "", &auth.User{}, errors.New("MPIN not set up for this user. Please verify OTP first.")
 	}
 
 	// 3. Verify the MPIN matches the hash in the DB
@@ -241,19 +238,21 @@ func (s *Service) LoginMPIN(ctx context.Context, email string, mpin string) (str
 		} else if fails >= MaxFailedAttempts {
 			// Lock them out!
 			_ = s.securityRepo.LockAccount(ctx, email, LockoutDuration)
-			return "", "", errors.New("invalid MPIN. Maximum attempts reached. Account locked for 15 minutes")
+			return "", "", &auth.User{}, errors.New("invalid MPIN. Maximum attempts reached. Account locked for 15 minutes")
 		}
 
 		remaining := MaxFailedAttempts - fails
-		return "", "", fmt.Errorf("invalid MPIN. You have %d attempts remaining", remaining)
+		return "", "", &auth.User{}, fmt.Errorf("invalid MPIN. You have %d attempts remaining", remaining)
 
 	}
 
 	// 4. SUCCESS! Clear all failed attempts and locks.
 	_ = s.securityRepo.ClearLockAndAttempts(ctx, email)
 
+	accessToken, refreshToken, err := s.tokenProvider.GenerateSessionTokens(user.ID)
+
 	// 5. Issue fresh session tokens
-	return s.tokenProvider.GenerateSessionTokens(user.ID)
+	return accessToken, refreshToken, user, err
 }
 
 // generateSecureOTP creates a random 4 digit string using crypto/rand

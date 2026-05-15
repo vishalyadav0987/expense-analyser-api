@@ -64,7 +64,7 @@ func main() {
 	securityService := redisInfra.NewSecurityRepository(rdb)
 
 	setupRepo := postgres.NewSetupRepository(db)
-	setupService := setup.NewSetupService(setupRepo)
+	setupService := setup.NewSetupService(setupRepo, userRepo)
 
 	// B. Application Layer (The Brain)
 	authService := auth.NewService(userRepo, otpRepo, tokenProvider, emailProvider, securityService)

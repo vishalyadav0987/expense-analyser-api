@@ -5,15 +5,17 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/vishalyadav0987/expense-analyser/internal/domain/auth"
 	domain "github.com/vishalyadav0987/expense-analyser/internal/domain/setup"
 )
 
 type SetupService struct {
-	repo domain.SetupRepository
+	repo     domain.SetupRepository
+	authRepo auth.UserRepository
 }
 
-func NewSetupService(repo domain.SetupRepository) *SetupService {
-	return &SetupService{repo: repo}
+func NewSetupService(repo domain.SetupRepository, authRepo auth.UserRepository) *SetupService {
+	return &SetupService{repo: repo, authRepo: authRepo}
 }
 
 // ProcessInitialSetup builds the entity, validates it, and saves it.
@@ -37,5 +39,17 @@ func (s *SetupService) ProcessInitialSetup(ctx context.Context, p *domain.UserIn
 
 	// 4. Save to Database via the Transaction Repository
 	p.SetupCompleted = true
-	return s.repo.SaveCompleteSetup(ctx, p)
+	err := s.repo.SaveCompleteSetup(ctx, p)
+	if err != nil {
+		return fmt.Errorf("failed to save setup data: %w", err)
+	}
+
+	err = s.authRepo.MarkSetupComplete(ctx, p.UserID)
+	if err != nil {
+		// Even if this fails, the profile data was saved.
+		// You can either return the error or just log it, depending on your strictness.
+		return fmt.Errorf("setup saved, but failed to update user status: %w", err)
+	}
+
+	return nil
 }

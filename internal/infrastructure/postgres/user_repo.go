@@ -23,8 +23,8 @@ func NewUserRepository(db *sqlx.DB) *UserRepository {
 // CreateUser safely inserts a new user, catching duplicate emails via DB constraints.
 func (r *UserRepository) CreateUser(ctx context.Context, user *auth.User) error {
 	query := `
-		INSERT INTO users (id, email, password_hash, mpin_hash, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO users (id, email, password_hash, mpin_hash, is_active, setup_complete, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -33,6 +33,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *auth.User) error 
 		user.PasswordHash,
 		user.MPINHash, // This will naturally insert NULL if it's a nil pointer
 		user.IsActive,
+		user.SetupComplete,
 		user.CreatedAt,
 		user.UpdatedAt,
 	)
@@ -53,7 +54,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *auth.User) error 
 // GetUserByEmail fetches the user. It maps sql.ErrNoRows to a clean nil return.
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*auth.User, error) {
 	query := `
-		SELECT id, email, password_hash, mpin_hash, is_active, created_at, updated_at
+		SELECT id, email, password_hash, mpin_hash, is_active, setup_complete, created_at, updated_at
 		FROM users 
 		WHERE email = $1
 	`
@@ -74,7 +75,7 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*aut
 
 func (r *UserRepository) GetUserByID(ctx context.Context, userID string) (*auth.User, error) {
 	query := `
-		SELECT id, email, password_hash, mpin_hash, is_active, created_at, updated_at
+		SELECT id, email, password_hash, mpin_hash, is_active, setup_complete, created_at, updated_at
 		FROM users 
 		WHERE id = $1
 	`
@@ -114,6 +115,28 @@ func (r *UserRepository) UpdateMPIN(ctx context.Context, userID string, mpinHash
 	}
 	if rowsAffected == 0 {
 		return errors.New("user not found or mpin already set to this value")
+	}
+
+	return nil
+}
+
+func (r *UserRepository) MarkSetupComplete(ctx context.Context, userID string) error {
+	query := `
+        UPDATE users 
+        SET setup_complete = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+    `
+	result, err := r.db.ExecContext(ctx, query, true, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update setup status: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return errors.New("user not found or setup status already set to true")
 	}
 
 	return nil

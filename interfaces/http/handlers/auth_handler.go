@@ -120,7 +120,7 @@ func (h *AuthHandler) HandleLoginMPIN(c *gin.Context) {
 	}
 
 	// 2. Call the Service layer to verify the credentials
-	accessToken, refreshToken, err := h.authService.LoginMPIN(c.Request.Context(), req.Email, req.MPIN)
+	accessToken, refreshToken, user, err := h.authService.LoginMPIN(c.Request.Context(), req.Email, req.MPIN)
 	if err != nil {
 		// If the MPIN is wrong or the user doesn't exist, we return a 401 Unauthorized
 		c.JSON(http.StatusUnauthorized, dto.NewErrorResponse(err.Error()))
@@ -131,6 +131,12 @@ func (h *AuthHandler) HandleLoginMPIN(c *gin.Context) {
 	respData := dto.LoginMPINResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
+		UserData: dto.UserDataRes{
+			Email:         req.Email,
+			UserID:        user.ID,
+			Active:        user.IsActive,
+			SetupComplete: user.SetupComplete,
+		},
 	}
 	c.JSON(http.StatusOK, dto.NewSuccessResponse("Login successful", respData))
 }

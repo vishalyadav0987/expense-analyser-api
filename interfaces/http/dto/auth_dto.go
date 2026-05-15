@@ -51,6 +51,14 @@ type LoginMPINRequest struct {
 }
 
 type LoginMPINResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  string      `json:"access_token"`
+	RefreshToken string      `json:"refresh_token"`
+	UserData     UserDataRes `json:"userData"`
+}
+
+type UserDataRes struct {
+	Email         string
+	UserID        string
+	Active        bool
+	SetupComplete bool
 }

@@ -12,6 +12,7 @@ type UserRepository interface {
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	GetUserByID(ctx context.Context, userID string) (*User, error)
 	UpdateMPIN(ctx context.Context, userID string, mpinHash string) error
+	MarkSetupComplete(ctx context.Context, userID string) error
 }
 
 // OTPRepository defines how we handle short-lived, transient auth data.
