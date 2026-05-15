@@ -20,6 +20,7 @@ import (
 	routes "github.com/vishalyadav0987/expense-analyser/interfaces/http"
 	"github.com/vishalyadav0987/expense-analyser/interfaces/http/handlers"
 	"github.com/vishalyadav0987/expense-analyser/internal/application/auth"
+	"github.com/vishalyadav0987/expense-analyser/internal/application/setup"
 	"github.com/vishalyadav0987/expense-analyser/internal/infrastructure/email"
 	"github.com/vishalyadav0987/expense-analyser/internal/infrastructure/jwt"
 	"github.com/vishalyadav0987/expense-analyser/internal/infrastructure/postgres"
@@ -81,11 +82,15 @@ func main() {
 	emailProvider := email.NewSMTPEmailService()
 	securityService := redisInfra.NewSecurityRepository(rdb)
 
+	setupRepo := postgres.NewSetupRepository(db)
+	setupService := setup.NewSetupService(setupRepo)
+
 	// B. Application Layer (The Brain)
 	authService := auth.NewService(userRepo, otpRepo, tokenProvider, emailProvider, securityService)
 
 	// C. Delivery Layer (HTTP Handlers)
 	authHandler := handlers.NewAuthHandler(authService, tokenProvider)
+	setupHandler := handlers.NewSetupHandler(setupService)
 
 	// ------------------------------------------------------------------
 	// 3. Setup Gin Router
@@ -95,7 +100,7 @@ func main() {
 	router := gin.Default()
 
 	// Call our new Routing Layer
-	routes.SetupRouter(router, authHandler)
+	routes.SetupRouter(router, authHandler, setupHandler, tokenProvider)
 
 	// ------------------------------------------------------------------
 	// 5. Start Server with Graceful Shutdown

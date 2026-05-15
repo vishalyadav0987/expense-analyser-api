@@ -4,13 +4,16 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/vishalyadav0987/expense-analyser/interfaces/http/handlers"
+	"github.com/vishalyadav0987/expense-analyser/internal/application/auth"
+	"github.com/vishalyadav0987/expense-analyser/internal/middleware"
 )
 
 // SetupRouter organizes all endpoints and middleware for the application.
 // Passing the Gin engine allows us to inject dependencies cleanly.
-func SetupRouter(router *gin.Engine, authHandler *handlers.AuthHandler) {
+func SetupRouter(router *gin.Engine, authHandler *handlers.AuthHandler, setupHandler *handlers.SetupHandler, tokenProvider auth.TokenProvider) {
 
 	// API Versioning Group
+	apiAuthMiddleware := middleware.AuthMiddleware(tokenProvider, "api_access")
 	v1 := router.Group("/api/v1")
 	{
 		// ------------------------------------------------------------------
@@ -30,6 +33,13 @@ func SetupRouter(router *gin.Engine, authHandler *handlers.AuthHandler) {
 		{
 			// This route requires the user to pass the OTPAccessToken
 			secureAuth.POST("/set-mpin", authHandler.HandleSetMPIN)
+		}
+
+		userRoutes := v1.Group("/user")
+		userRoutes.Use(apiAuthMiddleware)
+		{
+			// POST /api/v1/user/setup
+			userRoutes.POST("/setup", setupHandler.HandleSetupProfile)
 		}
 
 		// Future implementation:
