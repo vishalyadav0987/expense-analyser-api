@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -11,11 +10,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
-	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq" // Postgres driver
 
-	// Adjust these imports to match your actual module name
+	"github.com/vishalyadav0987/expense-analyser/db/connect"
 	routes "github.com/vishalyadav0987/expense-analyser/interfaces/http"
 	"github.com/vishalyadav0987/expense-analyser/interfaces/http/handlers"
 	"github.com/vishalyadav0987/expense-analyser/internal/application/auth"
@@ -36,37 +32,23 @@ func main() {
 
 	cfg := config.MustLoad() // Loads the .env file
 
-	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		cfg.DBHost,
-		cfg.DBPort,
-		cfg.DBUsername,
-		cfg.DBPassword,
-		cfg.DBName,
-	)
-
 	// ------------------------------------------------------------------
 	// 2. Initialize Database Connections (The "Duffer" Check)
 	// ------------------------------------------------------------------
 
 	// Connect to PostgreSQL
-	db, err := sqlx.Connect("postgres", dsn)
+	db, err := connect.NewConnection(cfg.DBConnectionString)
 	if err != nil {
-		log.Fatalf("❌ Failed to connect to PostgreSQL: %v", err)
+		log.Fatalf("❌ Fatal DB Error: %v", err)
 	}
-	// SDE3 Connection Pool Tuning
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
-	db.SetConnMaxLifetime(5 * time.Minute)
-	log.Println("✅ Connected to PostgreSQL")
+	defer db.Close()
 
 	// Connect to Redis
-	rdb := redis.NewClient(&redis.Options{
-		Addr: cfg.RedisAddr,
-	})
-	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		log.Fatalf("❌ Failed to connect to Redis: %v", err)
+	rdb, err := connect.NewClient(cfg.RedisAddr)
+	if err != nil {
+		log.Fatalf("❌ Fatal Redis DB Error: %v", err)
 	}
-	log.Println("✅ Connected to Redis")
+	defer rdb.Close()
 
 	logger.Setup()
 
