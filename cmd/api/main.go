@@ -13,7 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/jmoiron/sqlx"
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq" // Postgres driver
 
 	// Adjust these imports to match your actual module name
@@ -21,6 +20,7 @@ import (
 	"github.com/vishalyadav0987/expense-analyser/interfaces/http/handlers"
 	"github.com/vishalyadav0987/expense-analyser/internal/application/auth"
 	"github.com/vishalyadav0987/expense-analyser/internal/application/setup"
+	"github.com/vishalyadav0987/expense-analyser/internal/config"
 	"github.com/vishalyadav0987/expense-analyser/internal/infrastructure/email"
 	"github.com/vishalyadav0987/expense-analyser/internal/infrastructure/jwt"
 	"github.com/vishalyadav0987/expense-analyser/internal/infrastructure/postgres"
@@ -30,20 +30,19 @@ import (
 
 func main() {
 
-	_ = godotenv.Load() // Loads the .env file
-
-	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_NAME"),
-	)
 	// ------------------------------------------------------------------
 	// 1. Configuration & Secrets (In production, load from .env)
 	// ------------------------------------------------------------------
-	redisAddr := "localhost:6379"
-	jwtSecret := "super_secret_key_change_in_production"
+
+	cfg := config.MustLoad() // Loads the .env file
+
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		cfg.DBHost,
+		cfg.DBPort,
+		cfg.DBUsername,
+		cfg.DBPassword,
+		cfg.DBName,
+	)
 
 	// ------------------------------------------------------------------
 	// 2. Initialize Database Connections (The "Duffer" Check)
@@ -62,7 +61,7 @@ func main() {
 
 	// Connect to Redis
 	rdb := redis.NewClient(&redis.Options{
-		Addr: redisAddr,
+		Addr: cfg.RedisAddr,
 	})
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
 		log.Fatalf("❌ Failed to connect to Redis: %v", err)
@@ -78,7 +77,7 @@ func main() {
 	// A. Infrastructure Layer (Adapters)
 	userRepo := postgres.NewUserRepository(db)
 	otpRepo := redisInfra.NewOTPRepository(rdb)
-	tokenProvider := jwt.NewTokenProvider(jwtSecret, "expense_app")
+	tokenProvider := jwt.NewTokenProvider(cfg.JWTSecret, "expense_app")
 	emailProvider := email.NewSMTPEmailService()
 	securityService := redisInfra.NewSecurityRepository(rdb)
 
@@ -106,7 +105,7 @@ func main() {
 	// 5. Start Server with Graceful Shutdown
 	// ------------------------------------------------------------------
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + cfg.AppPort,
 		Handler: router,
 		// SDE3 Security: Prevent slow-loris attacks by enforcing timeouts
 		ReadTimeout:  10 * time.Second,
