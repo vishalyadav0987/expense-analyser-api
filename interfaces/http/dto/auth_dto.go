@@ -62,3 +62,8 @@ type UserDataRes struct {
 	Active        bool
 	SetupComplete bool
 }
+
+// BiometricLoginRequest defines the payload expected from the Flutter app
+type BiometricLoginRequest struct {
+	RefreshToken string `json:"refreshToken" binding:"required"`
+}

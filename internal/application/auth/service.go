@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/vishalyadav0987/expense-analyser/internal/domain/auth"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -29,6 +30,7 @@ type TokenProvider interface {
 	GenerateOTPToken(userID string) (string, error)
 	GenerateSessionTokens(userID string) (accessToken string, refreshToken string, err error)
 	VerifyToken(tokenString string, expectedAudience string) (string, error)
+	VerifyTokenWithClaims(tokenString string, expectedAudience string) (jwt.MapClaims, error)
 }
 
 type EmailProvider interface {
@@ -44,6 +46,11 @@ type UseCase interface {
 	VerifyOTP(ctx context.Context, email, otp string) (otpToken string, isNewUser bool, err error)
 	SetMPIN(ctx context.Context, userID string, mpin string) (string, string, error)
 	LoginMPIN(ctx context.Context, email string, mpin string) (string, string, *auth.User, error)
+
+	// ------------------------------------------------------------------
+	// The Industry Standard: The "Secure Enclave" Approach
+	// ------------------------------------------------------------------
+	BiometricLogin(ctx context.Context, refreshToken string) (string, string, *auth.User, error)
 }
 
 // Service orchestrates the authentication business logic.
@@ -53,6 +60,7 @@ type Service struct {
 	tokenProvider TokenProvider
 	emailProvider EmailProvider
 	securityRepo  SecurityRepository
+	tokenRepo     auth.TokenRepository
 }
 
 // NewService is the dependency injection constructor.
@@ -62,6 +70,7 @@ func NewService(
 	tp TokenProvider,
 	ep EmailProvider,
 	securityRepo SecurityRepository,
+	tokenRepo auth.TokenRepository,
 ) *Service {
 	return &Service{
 		userRepo:      ur,
@@ -69,6 +78,7 @@ func NewService(
 		tokenProvider: tp,
 		emailProvider: ep,
 		securityRepo:  securityRepo,
+		tokenRepo:     tokenRepo,
 	}
 }
 
@@ -253,6 +263,92 @@ func (s *Service) LoginMPIN(ctx context.Context, email string, mpin string) (str
 
 	// 5. Issue fresh session tokens
 	return accessToken, refreshToken, user, err
+}
+
+// ------------------------------------------------------------------
+// The Industry Standard: The "Secure Enclave" Approach
+// ------------------------------------------------------------------
+func (s *Service) BiometricLogin(ctx context.Context, refreshToken string) (string, string, *auth.User, error) {
+	// 1. Verify the Refresh Token mathematically
+	claims, err := s.tokenProvider.VerifyTokenWithClaims(refreshToken, "token_refresh")
+	if err != nil {
+		return "", "", nil, fmt.Errorf("invalid or expired refresh token: %w", err)
+	}
+
+	userID, _ := claims["sub"].(string)
+	tokenJTI, _ := claims["jti"].(string) // The unique ID of this specific refresh token
+
+	// ---------------------------------------------------------
+	// 🚨 DEFENSE LEVEL 1: TOKEN REUSE DETECTION
+	// ---------------------------------------------------------
+	// Check if this specific token was already used
+	isUsed, err := s.tokenRepo.IsTokenUsed(ctx, tokenJTI)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("failed to verify token state: %w", err)
+	}
+	if isUsed {
+		// THEFT DETECTED! Someone is using a token we already rotated.
+		// Activate the Kill Switch to destroy ALL sessions for this user.
+		err = s.tokenRepo.ActivateKillSwitch(ctx, userID)
+
+		// Force the user out. They must re-authenticate with MPIN.
+		return "", "", nil, errors.New("security alert: token compromise detected, please log in with MPIN")
+	}
+
+	// ---------------------------------------------------------
+	// 🛡️ DEFENSE LEVEL 2: THE KILL SWITCH CHECK
+	// ---------------------------------------------------------
+	iatFloat, ok := claims["iat"].(float64)
+	if !ok {
+		return "", "", nil, errors.New("invalid token: missing issued at time")
+	}
+	issuedAt := time.Unix(int64(iatFloat), 0)
+
+	isKilled, err := s.tokenRepo.IsKillSwitchActive(ctx, userID, issuedAt)
+	if err != nil || isKilled {
+		return "", "", nil, errors.New("session terminated by security protocol, please log in with MPIN")
+	}
+
+	// ---------------------------------------------------------
+	// ✅ SUCCESS PATH
+	// ---------------------------------------------------------
+
+	// 2. Fetch the User from the database
+	user, err := s.userRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("database error: %w", err)
+	}
+
+	// 3. Security Guardrails
+	if user == nil {
+		return "", "", nil, errors.New("access denied: user not found")
+	}
+	if !user.IsActive {
+		// SDE3 Catch: Never let a banned user refresh their session!
+		return "", "", nil, errors.New("access denied: account has been deactivated")
+	}
+
+	// 4. Generate a brand new Access Token and Refresh Token pair
+	newAccessToken, newRefreshToken, err := s.tokenProvider.GenerateSessionTokens(userID)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("failed to generate new tokens: %w", err)
+	}
+
+	// Safely extract Expiration (exp) to calculate TTL
+	expFloat, ok := claims["exp"].(float64)
+	if !ok {
+		return "", "", nil, errors.New("invalid token: missing expiration time")
+	}
+	expirationTime := time.Unix(int64(expFloat), 0)
+	timeRemaining := time.Until(expirationTime)
+
+	// Blacklist the old token
+	if err := s.tokenRepo.MarkTokenUsed(ctx, tokenJTI, timeRemaining); err != nil {
+		return "", "", nil, fmt.Errorf("failed to blacklist old token: %w", err)
+	}
+
+	// 5. Success! Return the tokens and the user object for the frontend dashboard
+	return newAccessToken, newRefreshToken, user, nil
 }
 
 // generateSecureOTP creates a random 4 digit string using crypto/rand

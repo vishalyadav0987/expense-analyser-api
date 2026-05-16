@@ -30,6 +30,7 @@ func SetupRouter(
 			auth.POST("/request-otp", authHandler.HandleRequestOTP)
 			auth.POST("/verify-otp", authHandler.HandleVerifyOTP)
 			auth.POST("/mpin-login", authHandler.HandleLoginMPIN)
+			auth.POST("/biometric-login", authHandler.HandleBiometricLogin)
 		}
 
 		// ------------------------------------------------------------------

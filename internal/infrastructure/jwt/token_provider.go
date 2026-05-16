@@ -25,6 +25,7 @@ func NewTokenProvider(secret string, issuer string) *tokenProvider {
 // GenerateOTPToken creates a short-lived token just for the MPIN setup step.
 func (t *tokenProvider) GenerateOTPToken(userID string) (string, error) {
 	claims := jwt.MapClaims{
+		"jti": "mpin_setup" + generateUUID(),
 		"sub": userID,
 		"iss": t.issuer,
 		"aud": "mpin_setup", // SDE3 Tip: Use audience claims to restrict token usage
@@ -40,6 +41,7 @@ func (t *tokenProvider) GenerateOTPToken(userID string) (string, error) {
 func (t *tokenProvider) GenerateSessionTokens(userID string) (string, string, error) {
 	// 1. Generate Access Token (Short lived: 1 Hour)
 	accessClaims := jwt.MapClaims{
+		"jti": "api_access" + generateUUID(),
 		"sub": userID,
 		"iss": t.issuer,
 		"aud": "api_access",
@@ -53,6 +55,7 @@ func (t *tokenProvider) GenerateSessionTokens(userID string) (string, string, er
 
 	// 2. Generate Refresh Token (Long lived: 30 Days)
 	refreshClaims := jwt.MapClaims{
+		"jti": "token_refresh" + generateUUID(),
 		"sub": userID,
 		"iss": t.issuer,
 		"aud": "token_refresh",
@@ -105,4 +108,45 @@ func (t *tokenProvider) VerifyToken(tokenString string, expectedAudience string)
 	}
 
 	return userID, nil
+}
+
+func (t *tokenProvider) VerifyTokenWithClaims(tokenString string, expectedAudience string) (jwt.MapClaims, error) {
+	// 1. Parse and verify the token signature
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// SDE3 Security Check: Always verify the signing method matches what you expect!
+		// Hackers sometimes try to bypass security by changing the algorithm to "none".
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return t.secretKey, nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("invalid token: %w", err)
+	}
+
+	// 2. Extract the claims
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid token claims")
+	}
+
+	// 3. Verify the Audience (The VIP Ticket Check)
+	// This ensures someone cannot use an "api_access" token to do an "mpin_setup" action.
+	aud, ok := claims["aud"].(string)
+	if !ok || aud != expectedAudience {
+		return nil, fmt.Errorf("invalid token audience: expected %s, got %s", expectedAudience, aud)
+	}
+
+	// 4. Extract the User ID
+	_, ok = claims["sub"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing user id in token")
+	}
+
+	return claims, nil
+}
+
+func generateUUID() string {
+	return "usr_" + fmt.Sprintf("%d", time.Now().UnixNano())
 }

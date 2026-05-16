@@ -14,8 +14,8 @@ import (
 	"github.com/vishalyadav0987/expense-analyser/db/connect"
 	routes "github.com/vishalyadav0987/expense-analyser/interfaces/http"
 	"github.com/vishalyadav0987/expense-analyser/interfaces/http/handlers"
-	expense "github.com/vishalyadav0987/expense-analyser/internal/application/Expense"
 	"github.com/vishalyadav0987/expense-analyser/internal/application/auth"
+	expense "github.com/vishalyadav0987/expense-analyser/internal/application/expense"
 	"github.com/vishalyadav0987/expense-analyser/internal/application/setup"
 	"github.com/vishalyadav0987/expense-analyser/internal/config"
 	"github.com/vishalyadav0987/expense-analyser/internal/infrastructure/email"
@@ -70,8 +70,10 @@ func main() {
 	epxenseRepo := postgres.NewExpenseRepository(db)
 	expenseService := expense.NewExpenseService(epxenseRepo)
 
+	tokenRepo := redisInfra.NewTokenRepository(rdb)
+
 	// B. Application Layer (The Brain)
-	authService := auth.NewService(userRepo, otpRepo, tokenProvider, emailProvider, securityService)
+	authService := auth.NewService(userRepo, otpRepo, tokenProvider, emailProvider, securityService, tokenRepo)
 
 	// C. Delivery Layer (HTTP Handlers)
 	authHandler := handlers.NewAuthHandler(authService, tokenProvider)

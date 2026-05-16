@@ -22,3 +22,11 @@ type OTPRepository interface {
 	GetOTP(ctx context.Context, email string) (string, error)
 	DeleteOTP(ctx context.Context, email string) error
 }
+
+// Add this interface to your domain
+type TokenRepository interface {
+	MarkTokenUsed(ctx context.Context, jti string, expiration time.Duration) error
+	IsTokenUsed(ctx context.Context, jti string) (bool, error)
+	ActivateKillSwitch(ctx context.Context, userID string) error
+	IsKillSwitchActive(ctx context.Context, userID string, tokenIssuedAt time.Time) (bool, error)
+}

@@ -140,3 +140,59 @@ func (h *AuthHandler) HandleLoginMPIN(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, dto.NewSuccessResponse("Login successful", respData))
 }
+
+func (h *AuthHandler) HandleBiometricLogin(c *gin.Context) {
+	// 1. Parse and Validate the JSON payload
+	var req dto.BiometricLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("invalid payload: refresh token is required"))
+		return
+	}
+
+	// 2. Call the Biometric Login Service
+	accessToken, newRefreshToken, user, err := h.authService.BiometricLogin(c.Request.Context(), req.RefreshToken)
+	if err != nil {
+		errStr := err.Error()
+
+		// SDE3 Tip: Log the raw error internally for your backend monitoring (Datadog, Kibana, etc.)
+		// log.Printf("[AUTH ERROR] Biometric login failed: %v", err)
+
+		// 🚨 CASE 1: Active Security Threats (Kill Switch / Token Theft)
+		if strings.Contains(errStr, "security alert") || strings.Contains(errStr, "session terminated") {
+			// Frontend should instantly wipe the local vault and show the MPIN screen
+			c.JSON(http.StatusUnauthorized, dto.NewErrorResponse("Security alert: session terminated to protect your account. Please log in with MPIN."))
+			return
+		}
+
+		// ⚠️ CASE 2: Token Validation Failures (Expired, Malformed, Missing Claims)
+		if strings.Contains(errStr, "invalid") || strings.Contains(errStr, "expired") {
+			c.JSON(http.StatusUnauthorized, dto.NewErrorResponse("Session expired or invalid. Please log in with MPIN again."))
+			return
+		}
+
+		// 🚫 CASE 3: Account Status Issues (Banned or Deleted)
+		if strings.Contains(errStr, "deactivated") || strings.Contains(errStr, "not found") {
+			c.JSON(http.StatusForbidden, dto.NewErrorResponse("Access denied: Account is deactivated or unavailable."))
+			return
+		}
+
+		// 🛠️ CASE 4: The New Fallback (Database down, Redis timeout, etc.)
+		// We use 500 here because it's our fault, not the user's.
+		// We don't force them to use MPIN immediately, we just tell them to try again.
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse("An unexpected server error occurred. Please try again later."))
+		return
+	}
+
+	// 3. Return the exact same successful login response format as your MPIN login!
+	respData := dto.LoginMPINResponse{
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
+		UserData: dto.UserDataRes{
+			Email:         user.Email,
+			UserID:        user.ID,
+			Active:        user.IsActive,
+			SetupComplete: user.SetupComplete,
+		},
+	}
+	c.JSON(http.StatusOK, dto.NewSuccessResponse("Biometric login successful.", respData))
+}

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/vishalyadav0987/expense-analyser/interfaces/http/dto"
-	app "github.com/vishalyadav0987/expense-analyser/internal/application/Expense"
+	app "github.com/vishalyadav0987/expense-analyser/internal/application/expense"
 	"github.com/vishalyadav0987/expense-analyser/internal/domain/setup"
 )
 
