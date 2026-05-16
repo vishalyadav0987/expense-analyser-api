@@ -10,7 +10,13 @@ import (
 
 // SetupRouter organizes all endpoints and middleware for the application.
 // Passing the Gin engine allows us to inject dependencies cleanly.
-func SetupRouter(router *gin.Engine, authHandler *handlers.AuthHandler, setupHandler *handlers.SetupHandler, tokenProvider auth.TokenProvider) {
+func SetupRouter(
+	router *gin.Engine,
+	authHandler *handlers.AuthHandler,
+	setupHandler *handlers.SetupHandler,
+	expenseHandler *handlers.ExpenseHandler,
+	tokenProvider auth.TokenProvider,
+) {
 
 	// API Versioning Group
 	apiAuthMiddleware := middleware.AuthMiddleware(tokenProvider, "api_access")
@@ -42,11 +48,11 @@ func SetupRouter(router *gin.Engine, authHandler *handlers.AuthHandler, setupHan
 			userRoutes.POST("/setup", setupHandler.HandleSetupProfile)
 		}
 
-		// Future implementation:
-		// expenses := v1.Group("/expenses").Use(middleware.RequireJWT())
-		// {
-		// 	expenses.POST("/", expenseHandler.CreateExpense)
-		// 	expenses.GET("/", expenseHandler.GetRecentExpenses)
-		// }
+		expenseRoutes := v1.Group("/expense")
+		expenseRoutes.Use(apiAuthMiddleware)
+		{
+			expenseRoutes.POST("/create-category", expenseHandler.HandleCreateCategory)
+		}
+
 	}
 }
