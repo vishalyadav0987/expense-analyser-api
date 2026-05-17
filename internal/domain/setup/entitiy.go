@@ -1,6 +1,9 @@
 package setup
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 // 1. Enums for strict type safety
 type CategoryType string
@@ -83,4 +86,17 @@ func (u *UserInitialSetup) ValidateWeeklyLimit() error {
 	}
 
 	return nil
+}
+
+type UserInitialSetupDTO struct {
+	UserID               string
+	SetupCompleted       bool
+	MonthlySalary        float64
+	YearlyHikePercentage float64
+	XXWeeklyLimit        float64
+	NeedsPercentage      int
+	WantsPercentage      int
+	SavingsPercentage    int
+	CreatedAt            time.Time
+	UpdateAt             time.Time
 }
