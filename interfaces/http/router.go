@@ -53,6 +53,7 @@ func SetupRouter(
 		expenseRoutes.Use(apiAuthMiddleware)
 		{
 			expenseRoutes.POST("/create-category", expenseHandler.HandleCreateCategory)
+			expenseRoutes.POST("/create-expense", expenseHandler.HandleAddExpense)
 		}
 
 	}

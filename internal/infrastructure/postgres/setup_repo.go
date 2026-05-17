@@ -89,18 +89,32 @@ func (r *SetupRepository) GetInitailSetupDetails(
 	ctx context.Context,
 	userId string,
 ) (*setup.UserInitialSetupDTO, error) {
-	query := `SELECT user_id, monthly_salary, yearly_hike_percentage, needs_percentage, wants_percentage, savings_percentage, setup_completed, created_at, updated_at 
-	FROM WHERE user_id = $1`
+
+	query := `
+		SELECT
+			user_id,
+			monthly_salary,
+			yearly_hike_percentage,
+			needs_percentage,
+			wants_percentage,
+			savings_percentage,
+			setup_completed,
+			created_at,
+			updated_at
+		FROM user_profiles
+		WHERE user_id = $1
+	`
 
 	var userSetupData setup.UserInitialSetupDTO
+
 	err := r.db.GetContext(ctx, &userSetupData, query, userId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to query user by email: %w", err)
+
+		return nil, fmt.Errorf("failed to get initial setup details: %w", err)
 	}
 
 	return &userSetupData, nil
-
 }

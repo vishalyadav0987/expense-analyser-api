@@ -39,10 +39,10 @@ type SmartRules struct {
 
 // 3. Main Entities
 type Category struct {
-	ID     string
-	UserID string
-	Name   string
-	Type   CategoryType
+	ID     string       `db:"id"`
+	UserID string       `db:"user_id"`
+	Name   string       `db:"name"`
+	Type   CategoryType `db:"type"`
 }
 
 type PaymentMethod struct {
@@ -89,14 +89,14 @@ func (u *UserInitialSetup) ValidateWeeklyLimit() error {
 }
 
 type UserInitialSetupDTO struct {
-	UserID               string
-	SetupCompleted       bool
-	MonthlySalary        float64
-	YearlyHikePercentage float64
-	XXWeeklyLimit        float64
-	NeedsPercentage      int
-	WantsPercentage      int
-	SavingsPercentage    int
-	CreatedAt            time.Time
-	UpdateAt             time.Time
+	UserID               string    `db:"user_id"`
+	SetupCompleted       bool      `db:"setup_completed"`
+	MonthlySalary        float64   `db:"monthly_salary"`
+	YearlyHikePercentage float64   `db:"yearly_hike_percentage"`
+	XXWeeklyLimit        float64   `db:"xx_weekly_limit"`
+	NeedsPercentage      int       `db:"needs_percentage"`
+	WantsPercentage      int       `db:"wants_percentage"`
+	SavingsPercentage    int       `db:"savings_percentage"`
+	CreatedAt            time.Time `db:"created_at"`
+	UpdatedAt            time.Time `db:"updated_at"`
 }

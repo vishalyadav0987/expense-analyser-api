@@ -68,7 +68,7 @@ func main() {
 	setupService := setup.NewSetupService(setupRepo, userRepo)
 
 	epxenseRepo := postgres.NewExpenseRepository(db)
-	expenseService := expense.NewExpenseService(epxenseRepo)
+	expenseService := expense.NewExpenseService(epxenseRepo, setupRepo)
 
 	tokenRepo := redisInfra.NewTokenRepository(rdb)
 

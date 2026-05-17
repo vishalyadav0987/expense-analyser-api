@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/vishalyadav0987/expense-analyser/interfaces/http/dto"
 	app "github.com/vishalyadav0987/expense-analyser/internal/application/expense"
+	"github.com/vishalyadav0987/expense-analyser/internal/domain/expense"
 	"github.com/vishalyadav0987/expense-analyser/internal/domain/setup"
 )
 
@@ -52,6 +53,44 @@ func (h *ExpenseHandler) HandleCreateCategory(c *gin.Context) {
 			"id":   Expense.ID,
 			"name": Expense.Name,
 			"type": Expense.Type,
+		},
+	})
+}
+
+func (h *ExpenseHandler) HandleAddExpense(c *gin.Context) {
+	userID, _ := c.Get("userID")
+
+	var req dto.AddExpenseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse("invalid payload"))
+		return
+	}
+
+	// Map to Domain Entity
+	newExp := &expense.Expense{
+		UserID:      userID.(string),
+		Amount:      req.Amount,
+		CategoryID:  req.CategoryID,
+		Description: req.Description,
+		PaymentMode: setup.PaymentMethodType(req.PaymentMode),
+		Date:        req.Date,
+	}
+
+	// Call the Smart Rule Engine
+	warning, err := h.service.ProcessNewExpense(c.Request.Context(), newExp)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(err.Error()))
+		return
+	}
+
+	// Return the perfect JSON format requested by Frontend
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"message": "Expense added successfully.",
+		"data": gin.H{
+			"transactionId": newExp.ID,
+			"limitWarning":  warning,
+			"transaction":   newExp, // Since Category is a pointer inside newExp, it will render as a nested JSON object perfectly!
 		},
 	})
 }
