@@ -16,6 +16,7 @@ import (
 	"github.com/vishalyadav0987/expense-analyser/interfaces/http/handlers"
 	"github.com/vishalyadav0987/expense-analyser/internal/application/analyzer"
 	"github.com/vishalyadav0987/expense-analyser/internal/application/auth"
+	"github.com/vishalyadav0987/expense-analyser/internal/application/dashboard"
 	expense "github.com/vishalyadav0987/expense-analyser/internal/application/expense"
 	"github.com/vishalyadav0987/expense-analyser/internal/application/setup"
 	"github.com/vishalyadav0987/expense-analyser/internal/config"
@@ -74,6 +75,8 @@ func main() {
 	analyzerRepo := postgres.NewAnalyzerRepository(db)
 	analyzerService := analyzer.NewAnalyzerService(analyzerRepo)
 
+	dashboardService := dashboard.NewDashboardService(epxenseRepo, setupRepo)
+
 	tokenRepo := redisInfra.NewTokenRepository(rdb)
 
 	// B. Application Layer (The Brain)
@@ -84,6 +87,7 @@ func main() {
 	setupHandler := handlers.NewSetupHandler(setupService)
 	expenseHandler := handlers.NewExpenseHandler(expenseService)
 	analyzerHandler := handlers.NewAnalyzerHandler(analyzerService)
+	dashboardHandler := handlers.NewDashboardHandler(*dashboardService)
 
 	// ------------------------------------------------------------------
 	// 3. Setup Gin Router
@@ -93,7 +97,7 @@ func main() {
 	router := gin.Default()
 
 	// Call our new Routing Layer
-	routes.SetupRouter(router, authHandler, setupHandler, expenseHandler, analyzerHandler, tokenProvider)
+	routes.SetupRouter(router, authHandler, setupHandler, expenseHandler, analyzerHandler, dashboardHandler, tokenProvider)
 
 	// ------------------------------------------------------------------
 	// 5. Start Server with Graceful Shutdown

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/vishalyadav0987/expense-analyser/internal/domain/dashboard"
 	"github.com/vishalyadav0987/expense-analyser/internal/domain/expense"
 	domain "github.com/vishalyadav0987/expense-analyser/internal/domain/setup"
 )
@@ -110,4 +111,24 @@ func (r *ExpenseRepository) GetAllCategoriesByUserID(ctx context.Context, userID
 	}
 
 	return categories, nil
+}
+
+func (r *ExpenseRepository) GetMonthlyTransactions(ctx context.Context, userID string, startDate, endDate time.Time) ([]*dashboard.RecentTransaction, error) {
+	// SDE3 Trick: JOIN categories to get 'Type' and 'Name' directly in one query
+	query := `
+		SELECT 
+			e.id, e.date, e.description, c.name as category, e.amount, e.payment_mode, c.type
+		FROM expenses e
+		JOIN categories c ON e.category_id = c.id
+		WHERE e.user_id = $1 AND e.date >= $2 AND e.date <= $3
+		ORDER BY e.date DESC
+	`
+
+	transactions := make([]*dashboard.RecentTransaction, 0)
+	err := r.db.SelectContext(ctx, &transactions, query, userID, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch monthly transactions: %w", err)
+	}
+
+	return transactions, nil
 }

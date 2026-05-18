@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/vishalyadav0987/expense-analyser/internal/domain/dashboard"
 	"github.com/vishalyadav0987/expense-analyser/internal/domain/setup"
 )
 
@@ -18,4 +19,5 @@ type ExpenseRepository interface {
 		weekStart time.Time,
 	) (float64, error)
 	GetAllCategoriesByUserID(ctx context.Context, userID string) ([]*setup.Category, error)
+	GetMonthlyTransactions(ctx context.Context, userID string, startDate, endDate time.Time) ([]*dashboard.RecentTransaction, error)
 }

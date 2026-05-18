@@ -16,6 +16,7 @@ func SetupRouter(
 	setupHandler *handlers.SetupHandler,
 	expenseHandler *handlers.ExpenseHandler,
 	analyzerHandler *handlers.AnalyzerHandler,
+	dashboardHandler *handlers.DashboardHandler,
 	tokenProvider auth.TokenProvider,
 ) {
 
@@ -62,6 +63,12 @@ func SetupRouter(
 		analyzerRoutes.Use(apiAuthMiddleware)
 		{
 			analyzerRoutes.GET("/weekly", analyzerHandler.HandleGetWeekly)
+		}
+
+		dashboardRoutes := v1.Group("/dashboard")
+		dashboardRoutes.Use(apiAuthMiddleware)
+		{
+			dashboardRoutes.GET("/summary", dashboardHandler.HandleGetSummary)
 		}
 
 	}
