@@ -17,4 +17,5 @@ type ExpenseRepository interface {
 		categoryType string,
 		weekStart time.Time,
 	) (float64, error)
+	GetAllCategoriesByUserID(ctx context.Context, userID string) ([]*setup.Category, error)
 }

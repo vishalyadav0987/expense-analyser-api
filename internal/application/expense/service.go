@@ -49,6 +49,10 @@ func (s *ExpenseService) ProcessNewExpense(ctx context.Context, reqExp *domain.E
 		return nil, fmt.Errorf("invalid category: %w", err)
 	}
 
+	if category == nil {
+		return nil, fmt.Errorf("category not found for id: %s", reqExp.CategoryID)
+	}
+
 	// Populate it so the frontend gets the full object back
 	reqExp.Category = category
 	reqExp.ID = "txn_" + uuid.NewString()[:8]
@@ -117,4 +121,22 @@ func (s *ExpenseService) ProcessNewExpense(ctx context.Context, reqExp *domain.E
 	}
 
 	return limitWarning, nil
+}
+
+func (s *ExpenseService) GetUserCategories(
+	ctx context.Context,
+	userID string,
+) ([]*setup.Category, error) {
+	categories, err := s.repo.GetAllCategoriesByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("service failed to fetch user categories: %w", err)
+	}
+
+	// 🚨 SDE3 Crash Prevention: Go returns 'null' for nil slices in JSON.
+	// Agar category nil hai, toh usko explicitly empty array [] set karo taaki Flutter khush rahe.
+	if categories == nil {
+		categories = []*setup.Category{}
+	}
+
+	return categories, nil
 }

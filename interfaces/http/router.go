@@ -55,6 +55,7 @@ func SetupRouter(
 		{
 			expenseRoutes.POST("/create-category", expenseHandler.HandleCreateCategory)
 			expenseRoutes.POST("/create-expense", expenseHandler.HandleAddExpense)
+			expenseRoutes.GET("/categories", expenseHandler.HandleGetCategories)
 		}
 
 		analyzerRoutes := v1.Group("/analyzer")

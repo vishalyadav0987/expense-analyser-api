@@ -92,3 +92,22 @@ func (r *ExpenseRepository) GetWeeklySpendByType(
 	}
 	return totalSpent, nil
 }
+
+func (r *ExpenseRepository) GetAllCategoriesByUserID(ctx context.Context, userID string) ([]*domain.Category, error) {
+	query := `
+		SELECT id, user_id, name, type 
+		FROM categories 
+		WHERE user_id = $1
+		ORDER BY type, name -- SDE3 Trick: Alphabetical aur Type wise sort karke bhejo
+	`
+
+	// sqlx needs an initialized slice
+	categories := make([]*domain.Category, 0)
+
+	err := r.db.SelectContext(ctx, &categories, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch categories for user: %w", err)
+	}
+
+	return categories, nil
+}

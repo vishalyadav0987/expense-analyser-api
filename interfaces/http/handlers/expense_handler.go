@@ -94,3 +94,44 @@ func (h *ExpenseHandler) HandleAddExpense(c *gin.Context) {
 		},
 	})
 }
+
+func (h *ExpenseHandler) HandleGetCategories(c *gin.Context) {
+	// 1. Extract UserID from the JWT Token (Set by your apiAuthMiddleware)
+	// Make sure the key "user_id" matches what your middleware sets!
+	userIDValue, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Unauthorized access. User ID not found in token.",
+		})
+		return
+	}
+
+	// Type assertion
+	userID, ok := userIDValue.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Internal server error. Invalid user ID format.",
+		})
+		return
+	}
+
+	// 2. Call the Service
+	categories, err := h.service.GetUserCategories(c.Request.Context(), userID)
+	if err != nil {
+		// Log the actual error internally, but send a clean message to the app
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to fetch categories. Please try again.",
+		})
+		return
+	}
+
+	// 3. Return Standardized Response
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Categories fetched successfully.",
+		"data":    categories,
+	})
+}
