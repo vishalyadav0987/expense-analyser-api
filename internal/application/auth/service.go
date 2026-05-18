@@ -44,7 +44,7 @@ type EmailProvider interface {
 type UseCase interface {
 	RequestOTP(ctx context.Context, email, password string) (string, error)
 	VerifyOTP(ctx context.Context, email, otp string) (otpToken string, isNewUser bool, err error)
-	SetMPIN(ctx context.Context, userID string, mpin string) (string, string, error)
+	SetMPIN(ctx context.Context, userID string, mpin string) (*auth.User, string, string, error)
 	LoginMPIN(ctx context.Context, email string, mpin string) (string, string, *auth.User, error)
 
 	// ------------------------------------------------------------------
@@ -180,24 +180,28 @@ func (s *Service) VerifyOTP(ctx context.Context, email, otp string) (otpToken st
 
 // SetMPIN is strictly for the initial setup.
 // It requires the userID that was extracted from the otpAccessToken by the middleware.
-func (s *Service) SetMPIN(ctx context.Context, userID string, mpin string) (string, string, error) {
+func (s *Service) SetMPIN(ctx context.Context, userID string, mpin string) (*auth.User, string, string, error) {
+	user, err := s.userRepo.GetUserByID(ctx, userID)
 	if len(mpin) != 4 {
-		return "", "", errors.New("MPIN must be exactly 4 digits")
+		return nil, "", "", errors.New("MPIN must be exactly 4 digits")
 	}
 
 	// 1. Hash the new MPIN
 	hashedMPIN, err := bcrypt.GenerateFromPassword([]byte(mpin), bcrypt.DefaultCost)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to hash MPIN: %w", err)
+		return nil, "", "", fmt.Errorf("failed to hash MPIN: %w", err)
 	}
 
 	// 2. Save it to the database
-	if err := s.userRepo.UpdateMPIN(ctx, userID, string(hashedMPIN)); err != nil {
-		return "", "", fmt.Errorf("failed to save new MPIN: %w", err)
+	err = s.userRepo.UpdateMPIN(ctx, userID, string(hashedMPIN))
+	if err != nil {
+		return nil, "", "", fmt.Errorf("failed to save new MPIN: %w", err)
 	}
 
+	accessToken, refreshToken, err := s.tokenProvider.GenerateSessionTokens(user.ID)
+
 	// 3. Issue the final session tokens
-	return s.tokenProvider.GenerateSessionTokens(userID)
+	return user, accessToken, refreshToken, err
 }
 
 // LoginMPIN is for everyday quick access.

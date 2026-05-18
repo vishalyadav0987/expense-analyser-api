@@ -15,6 +15,7 @@ func SetupRouter(
 	authHandler *handlers.AuthHandler,
 	setupHandler *handlers.SetupHandler,
 	expenseHandler *handlers.ExpenseHandler,
+	analyzerHandler *handlers.AnalyzerHandler,
 	tokenProvider auth.TokenProvider,
 ) {
 
@@ -54,6 +55,12 @@ func SetupRouter(
 		{
 			expenseRoutes.POST("/create-category", expenseHandler.HandleCreateCategory)
 			expenseRoutes.POST("/create-expense", expenseHandler.HandleAddExpense)
+		}
+
+		analyzerRoutes := v1.Group("/analyzer")
+		analyzerRoutes.Use(apiAuthMiddleware)
+		{
+			analyzerRoutes.GET("/weekly", analyzerHandler.HandleGetWeekly)
 		}
 
 	}

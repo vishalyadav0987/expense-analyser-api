@@ -95,7 +95,7 @@ func (h *AuthHandler) HandleSetMPIN(c *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.authService.SetMPIN(c.Request.Context(), userIDVal, req.MPIN)
+	user, accessToken, refreshToken, err := h.authService.SetMPIN(c.Request.Context(), userIDVal, req.MPIN)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(err.Error()))
 		return
@@ -104,6 +104,12 @@ func (h *AuthHandler) HandleSetMPIN(c *gin.Context) {
 	respData := dto.SubmitMPINResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
+		UserData: dto.UserDataRes{
+			Email:         user.Email,
+			UserID:        user.ID,
+			Active:        user.IsActive,
+			SetupComplete: user.SetupComplete,
+		},
 	}
 	c.JSON(http.StatusOK, dto.NewSuccessResponse("MPIN processed successfully.", respData))
 }

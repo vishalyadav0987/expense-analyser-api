@@ -40,8 +40,9 @@ type SubmitMPINRequest struct {
 }
 
 type SubmitMPINResponse struct {
-	AccessToken  string `json:"accessToken"`
-	RefreshToken string `json:"refreshToken"`
+	AccessToken  string      `json:"access_token"`
+	RefreshToken string      `json:"refresh_token"`
+	UserData     UserDataRes `json:"userData"`
 }
 
 type LoginMPINRequest struct {
